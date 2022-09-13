@@ -22,7 +22,7 @@ public class CPU {
         this.mem = mem;
     }
     public void Run(int ender) throws EnderecoInvalido {
-        PC = ender;
+    	PC = ender;
 
         // lê "programa" da memória
         regA = mem.Read(PC++);
@@ -37,4 +37,5 @@ public class CPU {
             ++regA;
         }
     }
+
 }

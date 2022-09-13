@@ -3,63 +3,71 @@ package pscf;
 public class CACHE_MD extends Memoria {
 
     RAM ram;
-    int[][] dados;
+    CACHE_LINE[] CACHE_LINES;
     int primeiroEnderecoRam;
     boolean isModificada;
+    int ultimaLinhaModificada;
 
-    public CACHE_MD(int capacidade, int cacheLine) {
+    public CACHE_MD(int capacidade, int qtdCacheLines, RAM ram) {
         super(capacidade);
-        dados = new int[capacidade/cacheLine][cacheLine];
+        this.ram = ram;
+        CACHE_LINES = new CACHE_LINE[qtdCacheLines];
+        for(int i=0; i<qtdCacheLines; i++) {
+        	CACHE_LINES[i] = new CACHE_LINE(new int[capacidade/qtdCacheLines]);
+        }
         isModificada = false;
     }
 
-    private int[] decodeCPUMessage(int binaryAddress){
-
+    private static int[] decodeCPUMessage(int endereco){
         //Capacidade da memória principal: 8M palavras* 2^23
         //Capacidade total da memória cache: 4096 palavras* = 2^12/2^6 (6 dígitos)
         // Tamanho da cache line: 64 palavras* (isto é, K = 64) 2^6 (6 digitos)
+    
 
-        int w = Integer.parseInt(Integer.toBinaryString(binaryAddress & 0b0000000000111111),2);
-        int r = Integer.parseInt(Integer.toBinaryString((binaryAddress>>6) & 0b0000111111000000),2);
-        int t = Integer.parseInt(Integer.toBinaryString(binaryAddress >>12),2);
-        return new int [] {w,r,t};
-
+        int w = endereco & 0b111111;
+        int r = (endereco>>6) & 0b111111;
+        int t = endereco >>12;
+        int ramAddress = endereco;
+        return new int [] {w,r,t, ramAddress};
     }
+    
+    private void copiarCacheParaRam(int w, int r, int ramAddress) {
+    	int len = CACHE_LINES[r].getDados().length;
+    	for (int i = 0; i < len; i++) {
+    		ram.getDados()[ramAddress - (r-i)]=CACHE_LINES[r].getDados()[i];
+  		}
+    }
+    
     //Checa se o endereço da RAM passado está na Cache
-    private boolean contemEnderecoRam (int endereco){
-        return endereco>=primeiroEnderecoRam && endereco< (primeiroEnderecoRam+capacidade);
-    }
-    //Copia o que está na Cache para a RAM
-    private void copiarCacheParaRam(){
-        for(int indexCache = 0; indexCache<capacidade; indexCache++){
-            this.ram.getDados()[primeiroEnderecoRam+indexCache] = this.dados[indexCache];
-        }
+    private boolean contemEnderecoRam (int t, int r){
+    	return CACHE_LINES[r].getT()==t;
     }
     //Copia o que está na RAM para a Cache
-    private void copiarRamParaCache(int novoPrimeiroEnderecoRam){
-        primeiroEnderecoRam = novoPrimeiroEnderecoRam; //Atualiza o endereço inicial da RAM na cache
-        //Se necessário, corrige o endereço inicial da RAM para preencher toda a cache
-        if (novoPrimeiroEnderecoRam+capacidade>ram.capacidade){
-            primeiroEnderecoRam = novoPrimeiroEnderecoRam - (ram.capacidade - novoPrimeiroEnderecoRam);
-        }
-        for(int indexCache = 0; indexCache<capacidade; indexCache++){
-            this.dados[indexCache] = this.ram.getDados()[primeiroEnderecoRam+indexCache];
-        }
+    private void copiarRamParaCache(int w, int r, int t, int ramAddress){
+    	CACHE_LINES[r].t=t;
+    	int len = CACHE_LINES[r].getDados().length;
+    	for (int i = 0; i < len; i++) {
+    		CACHE_LINES[r].getDados()[i]=ram.getDados()[ramAddress - (r-i)];
+  		}
     }
 
     @Override
     int Read(int endereco) throws EnderecoInvalido {
         ram.VerificaEndereco(endereco);
-        if(contemEnderecoRam(endereco) && primeiroEnderecoRam!=-1){
-            int ramIndex = endereco - primeiroEnderecoRam; //Pega o index do vetor da Cache
-            return dados[ramIndex];
+        int[] enderecos = decodeCPUMessage(endereco);
+        int w = enderecos[0];
+        int r = enderecos[1];
+        int t = enderecos[2];
+        int enderecoRam = enderecos[3];
+        if(contemEnderecoRam(t, r)){
+            return CACHE_LINES[r].getDados()[w];
         }
         else{
             if(isModificada){
-                copiarCacheParaRam();
+            	copiarCacheParaRam(w, r, enderecoRam);
                 isModificada = false;
             }
-            copiarRamParaCache(endereco);
+            copiarRamParaCache(w, r, t, enderecoRam);
             return Read(endereco);
         }
     }
@@ -67,25 +75,31 @@ public class CACHE_MD extends Memoria {
     @Override
     void Write(int endereco, int valor) throws EnderecoInvalido {
         ram.VerificaEndereco(endereco);
-        if(contemEnderecoRam(endereco)  && primeiroEnderecoRam!=-1){
-            int ramIndex = endereco - primeiroEnderecoRam;;
-            dados[ramIndex]=valor;
+        int[] enderecos = decodeCPUMessage(endereco);
+        int w = enderecos[0];
+        int r = enderecos[1];
+        int t = enderecos[2];
+        int enderecoRam = enderecos[3];
+        if(contemEnderecoRam(t, r)){
+        	CACHE_LINES[r].getDados()[w]=valor;
             isModificada = true;
         }
         else{
             if(isModificada){
-                copiarCacheParaRam();
+            	copiarCacheParaRam(w, r, enderecoRam);
                 isModificada = false;
             }
-            copiarRamParaCache(endereco);
+            copiarRamParaCache(w, r, t, enderecoRam);
             Write(endereco, valor);
         }
     }
+   
+    //public static void main (String[] args) {
+    	//int[] a = decodeCPUMessage(8000000);
+    	//for (int i = 0; i < a.length; i++) {
+    		//  System.out.println(a[i] + " !!! "+ Integer.toBinaryString(a[i]));
+    		//}
 
-    public static void main (String[] args){
-        int a = 0b1011;
+   // }
 
-        System.out.println(Integer.toBinaryString(a>>1));
-        System.out.println(Integer.parseInt(Integer.toBinaryString(a),2));
-    }
 }
