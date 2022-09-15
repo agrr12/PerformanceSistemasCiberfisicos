@@ -20,7 +20,8 @@ public class CACHE_MD extends Memoria {
 
     private static int[] decodificarEndereco(int endereco){
         //Capacidade da memória principal: 8M palavras* 2^23 ->23 dígitos necessários para representar endereços
-        //Capacidade total da memória cache: 4096 palavras* = 2^12/2^6 (6 dígitos) ->
+        //Capacidade total da memória cache: 4096 palavras
+    	// Quantidade de cache lines 2^12/2^6 (6 dígitos)
         // Tamanho da cache line: 64 palavras* (isto é, K = 64) 2^6 (6 digitos)
 
         int w = endereco & 0b111111; //Primeiros seis dígitos
@@ -30,7 +31,7 @@ public class CACHE_MD extends Memoria {
         return new int [] {w,r,t, s};
     }
     
-    private void copiarCacheParaRam(int s, int r, int primeiroDaRam) {
+    private void copiarCacheParaRam(int r, int primeiroDaRam) {
     	int len = CACHE_LINES[r].getDados().length;
     	for (int i = 0; i < len; i++) {
             //Copia cada dado na cache line para sua posição correspondente na RAM
@@ -45,7 +46,7 @@ public class CACHE_MD extends Memoria {
     }
 
     //Copia o que está na RAM para a Cache
-    private void copiarRamParaCache(int r, int s, int t, int primeiroDaRam){
+    private void copiarRamParaCache(int r, int t, int primeiroDaRam){
     	CACHE_LINES[r].t=t; //Atualiza a Tag na Cache Line
     	int len = CACHE_LINES[r].getDados().length; //Registra o tamanho da cacheLine
     	for (int i = 0; i < len; i++) {
@@ -74,10 +75,10 @@ public class CACHE_MD extends Memoria {
         else{
             //Se a Cache foi modificada, os novos dados são movidos para RAM
             if(isModificada){
-            	copiarCacheParaRam(w, r, primeiroDaRam);
+            	copiarCacheParaRam(r, primeiroDaRam);
                 isModificada = false;
             }
-            copiarRamParaCache(r, s,t, primeiroDaRam);
+            copiarRamParaCache(r, t, primeiroDaRam);
             int a = CACHE_LINES[r].getDados()[w];
             int b = ram.getDados()[endereco];
             return CACHE_LINES[r].getDados()[w];
@@ -93,7 +94,8 @@ public class CACHE_MD extends Memoria {
         int r = enderecos[1];
         int t = enderecos[2];
         int s = enderecos[3];
-        int primeiroDaRam = k *((int)endereco/k);
+        //int primeiroDaRam = k *((int)endereco/k);
+        int primeiroDaRam = s<<6;
         //Caso 1 --Cache Hit
 
         if(contemEnderecoRam(t, r)){
@@ -104,10 +106,10 @@ public class CACHE_MD extends Memoria {
         else{
             //Se a Cache foi modificada, os novos dados são movidos para RAM
             if(isModificada){
-            	copiarCacheParaRam(w, r, primeiroDaRam);
+            	copiarCacheParaRam(r, primeiroDaRam);
                 isModificada = false;
             }
-            copiarRamParaCache(r, s, t, primeiroDaRam);
+            copiarRamParaCache(r, t, primeiroDaRam);
             CACHE_LINES[r].getDados()[w]=valor;
             isModificada = true;
         }
