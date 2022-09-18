@@ -79,8 +79,6 @@ public class CACHE_MD extends Memoria {
                 isModificada = false;
             }
             copiarRamParaCache(r, t, primeiroDaRam);
-            int a = CACHE_LINES[r].getDados()[w];
-            int b = ram.getDados()[endereco];
             return CACHE_LINES[r].getDados()[w];
         }
     }
@@ -95,7 +93,7 @@ public class CACHE_MD extends Memoria {
         int t = enderecos[2];
         int s = enderecos[3];
         //int primeiroDaRam = k *((int)endereco/k);
-        int primeiroDaRam = s<<6;
+        int primeiroDaRam = s<<6; //S + seis zeros para indicar o primeiro endereço do bloco
         //Caso 1 --Cache Hit
 
         if(contemEnderecoRam(t, r)){
